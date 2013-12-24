@@ -17,8 +17,11 @@
   var cdOffsetX;
   var shinOffsetX;
   var barWidth;
+  var layer;
+  var isShowValue;
 
   // 線をシャープに（なんかもっとうまい手はないかなぁ。）
+  // (I wonder if there is no more good hand softening.) Lines sharply
   var _ajustXY = function( p ) {
     if( p%2 === 0 ) { return ( p - 0.5 ); }
     return p;
@@ -35,9 +38,11 @@
   };
 
   // オプション設定
+  // Option settings
   var _setOption = function(options) {
     st = $.extend({
       //optionの初期値を設定
+      //Set the initial value of option
       'width' : 400,
       'height' : 300,
       'ofX': 50,
@@ -57,10 +62,12 @@
       }, options);
 
     // 座標スケールの変換準備（縦表示領域とスケールの比を求める）
+    // (I find the ratio of scale and vertical display area) preparation of coordinate conversion scale
     chHeight = st.height - st.ofY*2;
     param = chHeight / (st.upper  - st.lower);
 
     // ローソクの幅から芯や出来高の幅、間隔を計算
+    // Calculate width, the distance between the core volume and from the width of the candle
     shinWidth = Math.floor(st.cdWidth /3);
     cdStage = st.cdWidth*2;
     cdOffsetX = st.ofX + cdStage;
@@ -69,10 +76,13 @@
   };
 
   // 横罫線の描画
+  // Full draw horizontal lines squares of a chessboard
   var _writeScale = function(ctx) {
   
     // 罫線の幅を計算
+    // Full line width を calculating squares of a chessboard
     // 上限、下限の幅を罫線数で割る
+    // I divided by the number of border width upper limit, lower limit of
     var p = Math.floor((st.upper-st.lower)/st.liNum);
 
   	// Font Setting
@@ -90,6 +100,7 @@
       ctx.stroke();
 
       // 罫線部分の値
+      // Squares of a chessboard line Portion value
       ctx.beginPath();
       ctx.strokeStyle = st.cdLineColor;
       ctx.strokeText( p*i + st.lower, st.ofX - 4, y, st.ofX);
@@ -109,12 +120,17 @@
     ctx.fillRect(0, 0, st.width, st.height);
 
     // 基本枠線
+    // Basic Zui line
     ctx.strokeStyle = st.cdLineColor;
     ctx.lineWidth = 1;
     ctx.beginPath();
+    
     ctx.moveTo( _ajustXY(st.ofX), _ajustXY( st.ofY) );
+    // vertical
     ctx.lineTo( _ajustXY(st.ofX), _ajustXY( st.height - st.ofY) );
+    // horizental 
     ctx.lineTo( _ajustXY(st.width - st.ofX), _ajustXY(st.height - st.ofY));
+
     ctx.stroke();
 
   };
@@ -138,6 +154,7 @@
     }
 
     // 罫線部分の値
+    // Squares of a chessboard line Portion value
     ctx.beginPath();
     ctx.strokeStyle = st.cdLineColor;
     ctx.textBaseline = "top";
@@ -168,8 +185,33 @@
       ctx.strokeStyle = st.cdLineColor;
       ctx.fillRect( _ajustXY(d * cdStage + cdOffsetX), _ajustXY(chHeight-opP + st.ofY) , st.cdWidth, opP-clP );
       ctx.strokeRect( _ajustXY(d * cdStage + cdOffsetX), _ajustXY(chHeight-opP + st.ofY) , st.cdWidth, opP-clP );
+      ctx.strokeStyle = "#0000FF";
+
+      var rectHeight = Math.max(_ajustXY(chHeight - loP + st.ofY) - _ajustXY(chHeight - hiP + st.ofY ), 10);
+      
+
+      jQuery(this).mousemove(function(ev){
+        
+        if(ev.offsetX > _ajustXY(d * cdStage + shinOffsetX) - st.cdWidth && 
+          ev.offsetX < _ajustXY(d * cdStage + shinOffsetX) - st.cdWidth + st.cdWidth*2 &&
+          ev.offsetY > _ajustXY(chHeight - hiP + st.ofY ) - rectHeight &&
+          ev.offsetY < _ajustXY(chHeight - hiP + st.ofY ) - rectHeight + rectHeight*3)
+        {
+          ctx.textAlign ="left";
+          ctx.strokeText("Start : " + o, st.width - 100, 10);
+          ctx.strokeText("End : " + c, st.width - 100, 22);
+          ctx.strokeText("High : " + h, st.width - 100, 34);
+          ctx.strokeText("Low : " + l, st.width - 100, 46);
+        }
+      });        
   };
 
+  var _writeLine = function(canvas, ev) {
+    var ctx = canvas.getContext('2d');
+    ctx.putImageData(layer, 0, 0);
+    ctx.fillRect(0, _ajustXY(ev.offsetY), st.width, 1);
+    ctx.fillRect(_ajustXY(ev.offsetX), 0, 1, st.height);
+  }
   // ローソク足の描画
   var _writeCandles = function(canvas,data) {
     if( data.length === 0 ) { return; }
@@ -330,12 +372,19 @@
       if(jQuery(this).attr("tagName")==="CANVAS") {
         _init(this);
         _writeCandles(this,d);
+        
+        
+        jQuery(this).mousemove(function(ev){
+          _writeLine(this, ev);
+        });        
       }
     });
 
     //method chain
     return this;
   };
+
+  
 
   // write Trading volume
   // 出来高の表示
@@ -363,12 +412,32 @@
       for(var i = 0;i < l; i++){
         _writeVolumeBar(ctx, Math.floor(data[i]* param),i);
       }
+
+
+      // Basic Volume line
+      ctx.strokeStyle = st.cdLineColor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo( _ajustXY(st.width - st.ofX), _ajustXY(st.height - st.ofY) );
+
+      // vertical
+      ctx.lineTo( _ajustXY(st.width - st.ofX), _ajustXY(st.height - st.ofY) - _ajustXY(40));
+      ctx.stroke();
+
+      var vol = max.toFixed(0);
+      ctx.textAlign ="left";
+      ctx.strokeText( vol, _ajustXY(st.width - st.ofX)+3, _ajustXY(st.height - st.ofY) - _ajustXY(40) - 2);
+      ctx.strokeText( vol/2, _ajustXY(st.width - st.ofX)+3, _ajustXY(st.height - st.ofY) - _ajustXY(20) - 2);
+
+
     };
+
 
     //要素を一個ずつ処理
     elm.each(function() {
       if(jQuery(this).attr("tagName")==="CANVAS") {
         _writeVolume(this,data);
+        layer = this.getContext('2d').getImageData(0, 0, st.width, st.height);
       }
     });
 
@@ -415,6 +484,7 @@
     elm.each(function() {
       if(jQuery(this).attr("tagName")==="CANVAS") {
         _writeMovingAvg(this,data,color);
+        layer = this.getContext('2d').getImageData(0, 0, st.width, st.height);
       }
     });
 
@@ -456,5 +526,8 @@
       'barWidth':barWidth
     };
   };
+
+
+  
 
 })(jQuery);
